@@ -1,0 +1,36 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/jason/cpp/SHSC/server/test/share_atomic_test.cc
+share/atomic.h
+/home/jason/cpp/SHSC/server/test/share/atomic.h
+share/thread.h
+/home/jason/cpp/SHSC/server/test/share/thread.h
+share/log.h
+/home/jason/cpp/SHSC/server/test/share/log.h
+
+src/share/atomic.h
+stdint.h
+-
+
+src/share/log.h
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+
+src/share/thread.h
+boost/function.hpp
+-
+boost/noncopyable.hpp
+-
+pthread.h
+-
+
