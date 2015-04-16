@@ -1,7 +1,0 @@
-/home/jason/cpp/SHSC/server/test/CMakeFiles/net_buffer_test.dir
-/home/jason/cpp/SHSC/server/test/CMakeFiles/net_inet_address_test.dir
-/home/jason/cpp/SHSC/server/test/CMakeFiles/share_atomic_test.dir
-/home/jason/cpp/SHSC/server/test/CMakeFiles/share_queue_test.dir
-/home/jason/cpp/SHSC/server/test/CMakeFiles/share_threadpool_test.dir
-/home/jason/cpp/SHSC/server/CMakeFiles/shsc.dir
-/home/jason/cpp/SHSC/server/test/CMakeFiles/ssl_test.dir
