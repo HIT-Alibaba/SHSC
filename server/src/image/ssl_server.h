@@ -40,7 +40,7 @@ namespace shsc {
       void OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer* buffer);
 
       virtual void OnReadCompletion(const AsyncConnectionPtr& conn, const char* buffer);
-
+      void OnConnection(const AsyncConnectionPtr& conn);
 
     protected:
 

@@ -20,7 +20,14 @@ CustomSSLServer::CustomSSLServer(EventPool* event_pool, const InetAddress& binda
 
   async_server_.SetReadCompletionCallback(boost::bind(
         &CustomSSLServer::OnSSLReadCompletion, this, _1, _2));
+
+  async_server_.SetConnectionCallback(boost::bind(
+        &CustomSSLServer::OnConnection, this, _1
+        ));
+  random1 = 1222222;
 }
+
+void CustomSSLServer::OnConnection(const AsyncConnectionPtr& conn){}
 
 void CustomSSLServer::Start(){
   async_server_.Start();
@@ -70,19 +77,24 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
  */
 void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
   
-  char* body = (char*)malloc(sizeof(char)*
-      strlen(reinterpret_cast<char*>(keypair_->public_key))/* public key */
+  int bodysize = strlen(reinterpret_cast<char*>(keypair_->public_key))/* public key */
       + 8 /*random number*/
-      + 27);
+      + 27;
+
+  char* body = (char*)malloc(bodysize);
   int bc = sprintf(body, "\"body\":{\"pubkey\":%s,\"magic\":%d}", keypair_->public_key, random1);
   if(bc == -1) ; // error;
 
+  body[bodysize-1] = '\0';
+
   std::string checksum = md5(body);  
-  
-  char* msg = (char*) malloc (sizeof(body) + 16 + checksum.size());
+
+  char* msg = (char*) malloc (bodysize + 14 + checksum.size());
   
   int mc = sprintf(msg, "{%s,\"checksum\":%s}", body, checksum.c_str());
   if(mc == -1) ; // error;
+
+  //LOG_TRACE("%s", msg);
 
   conn->Write(msg);
 
@@ -230,7 +242,7 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
   else{
     // new SSL connection.
     if(IsClientHello(buffer->TakeAsString().c_str(), cl_addr)){
-      // half_connections_.insert(std::make_pair(cl_addr, ))    
+      // half_connections_.insert(std::make_pair(cl_addr, ))
       ServerHello(conn);
       
     } else {
