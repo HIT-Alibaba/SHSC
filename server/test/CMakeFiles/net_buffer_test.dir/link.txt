@@ -1,1 +1,0 @@
-g++   -g -Wall -march=native -rdynamic -std=c++0x -O2    CMakeFiles/net_buffer_test.dir/net_buffer_test.cc.o  -o ../bin/net_buffer_test -rdynamic ../lib/libshsc.a -lpthread -lrt -lcrypto 

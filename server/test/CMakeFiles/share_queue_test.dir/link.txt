@@ -1,1 +1,0 @@
-g++   -g -Wall -march=native -rdynamic -std=c++0x -O2    CMakeFiles/share_queue_test.dir/share_queue_test.cc.o  -o ../bin/share_queue_test -rdynamic ../lib/libshsc.a -lpthread -lrt -lcrypto 

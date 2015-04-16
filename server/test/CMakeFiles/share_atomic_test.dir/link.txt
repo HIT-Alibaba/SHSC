@@ -1,1 +1,0 @@
-g++   -g -Wall -march=native -rdynamic -std=c++0x -O2    CMakeFiles/share_atomic_test.dir/share_atomic_test.cc.o  -o ../bin/share_atomic_test -rdynamic ../lib/libshsc.a -lpthread -lrt -lcrypto 

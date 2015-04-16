@@ -1,1 +1,0 @@
-g++   -g -Wall -march=native -rdynamic -std=c++0x -O2    CMakeFiles/net_inet_address_test.dir/net_inet_address_test.cc.o  -o ../bin/net_inet_address_test -rdynamic ../lib/libshsc.a -lpthread -lrt -lcrypto 

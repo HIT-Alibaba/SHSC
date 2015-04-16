@@ -1,1 +1,0 @@
-g++   -g -Wall -march=native -rdynamic -std=c++0x -O2    CMakeFiles/ssl_test.dir/test_ssl.cc.o  -o ../bin/ssl_test -rdynamic ../lib/libshsc.a -lpthread -lrt -lcrypto 
