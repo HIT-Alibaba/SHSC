@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include <openssl/rsa.h>
 
@@ -27,6 +28,7 @@ class ShscRSA {
            
     KeyPair* ReadKeyPairFromFile();
 
+    int32_t GenerateRandomInt();
 
     int PublicEncrypt(const unsigned char* data, int sz, unsigned char* key,
         unsigned char* encrypted);

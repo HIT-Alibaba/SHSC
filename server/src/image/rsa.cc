@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdint.h>
 
 #include "image/rsa.h"
 
@@ -9,6 +10,7 @@
 #include <openssl/ssl.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
 
 using namespace shsc;
 
@@ -65,6 +67,15 @@ KeyPair* ShscRSA::ReadKeyPairFromFile(){
   if(r != sz) return NULL;
 
   return pair;
+}
+
+int32_t ShscRSA::GenerateRandomInt(){
+   int32_t v;
+   if (RAND_bytes((unsigned char *)&v, sizeof v ) == 0) {
+      ERR_print_errors_fp(stderr);     
+      return 0;
+   }
+   return v;
 }
 
 RSA* ShscRSA::CreateRSA(unsigned char * key, int pub){
