@@ -2,7 +2,7 @@ import socket
 import json
 import os
 import hashlib
-
+import random
 #import rsa
 
 escape_dict = {'\a': r'\a',
@@ -25,6 +25,8 @@ escape_dict = {'\a': r'\a',
                '\9': r'\9'}
 
 
+_random = random.SystemRandom()
+
 def raw(text):
     """Returns a raw string representation of text"""
     new_string = ''
@@ -35,6 +37,9 @@ def raw(text):
             new_string += char
     return new_string
 
+
+def get_random_int():
+    return _random.randint(10000000, 99999999)
 
 class BaseClient(object):
 
@@ -59,7 +64,7 @@ class CustomSSLClient(BaseClient):
     def __init__(self):
         super(CustomSSLClient, self).__init__()
 
-        self.random1 = 1234567890
+        self.random1 = get_random_int()
         self.server_random = None
         self.private_key = None
         self.public_key = None
