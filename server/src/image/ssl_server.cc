@@ -6,6 +6,10 @@
 #include <boost/bind.hpp>
 
 #include <utility>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 using namespace shsc;
 using namespace rapidjson;
@@ -79,10 +83,10 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
   
   int bodysize = strlen(reinterpret_cast<char*>(keypair_->public_key))/* public key */
       + 8 /*random number*/
-      + 27;
+      + 29;
 
   char* body = (char*)malloc(bodysize);
-  int bc = sprintf(body, "\"body\":{\"pubkey\":%s,\"magic\":%d}", keypair_->public_key, random1);
+  int bc = sprintf(body, "\"body\":{\"pubkey\":\"%s\",\"magic\":%d}", keypair_->public_key, random1);
   if(bc == -1) ; // error;
 
   body[bodysize-1] = '\0';
@@ -91,7 +95,7 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
 
   char* msg = (char*) malloc (bodysize + 14 + checksum.size());
   
-  int mc = sprintf(msg, "{%s,\"checksum\":%s}", body, checksum.c_str());
+  int mc = sprintf(msg, "{%s,\"checksum\":\"%s\"}", body, checksum.c_str());
   if(mc == -1) ; // error;
 
   //LOG_TRACE("%s", msg);
@@ -128,6 +132,11 @@ bool CustomSSLServer::IsClientHello(const char* msg, const InetAddress& address)
   return true;
 }
 
+void CustomSSLServer::iatouc(const Value& array, unsigned char* epk){
+  for(rapidjson::SizeType i = 0; i < array.Size(); i++){
+    epk[i] = array[i].GetInt();
+  }
+}
 
 /*
  * Format of client confirm ack.
@@ -136,7 +145,7 @@ bool CustomSSLServer::IsClientHello(const char* msg, const InetAddress& address)
  * {
  *  "type":"ACK",
  *  "epk":encrpyted client public key.
- *  "length":length of encrypted client public key.
+ *  "length":client public key length
  *  "checksum":client key checksum
  * }
  *
@@ -144,26 +153,68 @@ bool CustomSSLServer::IsClientHello(const char* msg, const InetAddress& address)
 bool CustomSSLServer::ConfirmACK(const char* msg, ClientInfo* client){
   Document document;
   document.Parse(msg);
+
   if(!document.HasMember("type")) return false;
   if(!document.HasMember("epk")) return false;
   if(!document.HasMember("checksum")) return false;
-
+  if(!document.HasMember("length")) return false;
   if(strcmp(document["type"].GetString(), "ACK") != 0) return false;
   
-  const char* encrypted_client_pubkey = document["epk"].GetString(); 
+  const Value& jsonepk = document["epk"];
+  std::vector<std::string> epk_array;
+  
+  int tempfd;
+
+  for(rapidjson::SizeType i = 0; i < jsonepk.Size(); i++){
+    unsigned char* epk = (unsigned char*)malloc(sizeof(unsigned char*)
+        *jsonepk[i].Size());
+    iatouc(jsonepk[i], epk);
+    
+    mutex_.Lock();
+    tempfd = open("tempepk.key", O_WRONLY|O_CREAT, 0666);
+    write(tempfd, epk, jsonepk[i].Size()); 
+    
+
+    FILE* pipe = popen("openssl rsautl -in tempepk.key -inkey private.pem -decrypt", "r");
+    if(!pipe) return false; // error
+    
+    char buffer[128];
+    std::string result = "";
+    while(!feof(pipe)){
+      if(fgets(buffer, 128, pipe) != NULL)
+        result += buffer;
+    }
+
+    pclose(pipe);
+    close(tempfd);
+
+    epk_array.push_back(result);
+    // ok.
+    mutex_.Unlock();
+  }
+  
+  std::string client_pubkey;
+
+  for(size_t i = 0; i < epk_array.size(); i++){
+    client_pubkey+=epk_array[i];
+  }
+   
+  LOG_TRACE("%s", client_pubkey.c_str());
+
+  //const char* encrypted_client_pubkey = NULL; 
   //int PrivateDecrypt(unsigned char* enc_data, int sz, unsigned char* key, 
   //      unsigned char* decrypted);
-  unsigned char client_pub_key[2048 / 8];
-  rsa_->PrivateDecrypt(reinterpret_cast<const unsigned char*>(encrypted_client_pubkey)
-      , document["length"].GetInt(),
-    keypair_->private_key, client_pub_key);
+  //unsigned char client_pub_key[2048 / 8];
+  //rsa_->PrivateDecrypt(reinterpret_cast<const unsigned char*>(encrypted_client_pubkey)
+  //    , document["length"].GetInt(),
+  //  keypair_->private_key, client_pub_key);
 
-  std::string epk_hash = md5(reinterpret_cast<char*>(client_pub_key));
+  std::string epk_hash = md5(client_pubkey);
 
   if(strcmp(epk_hash.c_str(), document["checksum"].GetString()) != 0) return false;
 
-  client->client_pubkey = new unsigned char[2048 / 8];
-  memcpy(client->client_pubkey, client_pub_key, 2048 / 8);
+  client->client_pubkey = (unsigned char*)malloc(sizeof(unsigned char)*client_pubkey.size());
+  memcpy(client->client_pubkey, client_pubkey.c_str(), client_pubkey.size());
   
   mutex_.Lock();
   half_connections_.erase(half_connections_.find(client->address));
@@ -233,6 +284,8 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
 
       assert(connections_.find(cl_addr) != connections_.end());
       
+      LOG_TRACE("handshake over.");
+
       ServerFinish(conn, connections_.find(cl_addr)->second);
     }
     else {

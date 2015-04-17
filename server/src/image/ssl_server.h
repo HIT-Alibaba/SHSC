@@ -5,9 +5,12 @@
 #include "network/event_pool.h"
 #include "network/async_client.h"
 #include "image/rsa.h"
+#include "rapidjson/document.h"
 
 #include <map>
 #include <vector>
+
+using namespace rapidjson;
 
 namespace shsc {
 
@@ -41,6 +44,8 @@ namespace shsc {
 
       virtual void OnReadCompletion(const AsyncConnectionPtr& conn, const char* buffer);
       void OnConnection(const AsyncConnectionPtr& conn);
+
+      void iatouc(const rapidjson::Value& array, unsigned char* epk);
 
     protected:
 
