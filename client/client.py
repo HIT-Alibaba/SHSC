@@ -60,6 +60,7 @@ class CustomSSLClient(BaseClient):
         super(CustomSSLClient, self).__init__()
 
         self.random1 = 1234567890
+        self.server_random = None
         self.private_key = None
         self.public_key = None
 
@@ -69,9 +70,24 @@ class CustomSSLClient(BaseClient):
         #(self.public_key, self.private_key) = rsa.newkeys(2048)
         #print(self.public_key, self.private_key)
 
+    def handshake(self):
+        if not self.server_hello():
+            print("hello to server failed")
+            return False
+        data = self.read(1024)
+        if not self.process_server_hello(data):
+            print("hello from error")
+            return False
+        self.send_ack()
+        if not self.process_server_finish(self.read(1024)):
+            print("error when processing server fin message")
+            return False
+        return True
+
     def generate_key(self):
         os.system("openssl genrsa -out private.pem 2048")
-        os.system("openssl rsa -in private.pem -outform PEM -pubout -out public.pem")
+        os.system(
+            "openssl rsa -in private.pem -outform PEM -pubout -out public.pem")
 
         with open("private.pem", 'r') as f:
             self.private_key = f.read()
@@ -81,12 +97,18 @@ class CustomSSLClient(BaseClient):
 
     def server_hello(self):
         msg_dict = {"magic": self.random1, "type": "HELO"}
-        self.write(json.dumps(msg_dict))
-        data = self.read(1024)
-        self.process_server_hello(data)
+        try:
+            self.write(json.dumps(msg_dict))
+        except Exception:
+            return False
+
+        return True
 
     def process_server_hello(self, msg):
-        d = json.loads(raw(msg))
+        try:
+            d = json.loads(raw(msg))
+        except KeyError:
+            return False
 
         s = "\"body\":{\"pubkey\":\"" + d['body']['pubkey'].encode(
             'ascii', 'ignore') + "\",\"magic\":" + str(d['body']['magic']) + "}"
@@ -95,26 +117,28 @@ class CustomSSLClient(BaseClient):
         if ck != d['checksum']:
             # error
             print("checksum error")
+            return False
         else:
             self.server_pubkey = d['body']['pubkey'].encode('ascii', 'ignore')
             self.server_random = d['body']['magic']
-            self.send_ack()
+            return True
 
     def send_ack(self):
-        msg_dict = {"type":"ACK"}
+        msg_dict = {"type": "ACK"}
 
         blocks = len(self.public_key) / 128
         enc = []
         for i in range(0, blocks):
-            enc.append(self.encrypt(self.public_key[128*i: 128*(i+1)], self.server_pubkey))
-        enc.append(self.encrypt(self.public_key[blocks*128:], self.server_pubkey))
+            enc.append(
+                self.encrypt(self.public_key[128 * i: 128 * (i + 1)], self.server_pubkey))
+        enc.append(
+            self.encrypt(self.public_key[blocks * 128:], self.server_pubkey))
 
         msg_dict['epk'] = [map(ord, i) for i in enc]
         msg_dict['length'] = len(self.public_key)
         msg_dict['checksum'] = self.md5(self.public_key)
 
         self.write(json.dumps(msg_dict))
-        print(self.read(1024))
 
     def md5(self, str):
         m = hashlib.md5()
@@ -130,9 +154,11 @@ class CustomSSLClient(BaseClient):
             f.write(msg)
 
         if not key:
-            os.system("openssl rsautl -in tempfile.txt -out temp.rsa -encrypt -pubin -inkey public.pem")
+            os.system(
+                "openssl rsautl -in tempfile.txt -out temp.rsa -encrypt -pubin -inkey public.pem")
         else:
-            os.system("openssl rsautl -in tempfile.txt -out temp.rsa -encrypt -pubin -inkey tempkey.pem")
+            os.system(
+                "openssl rsautl -in tempfile.txt -out temp.rsa -encrypt -pubin -inkey tempkey.pem")
 
         r = ""
         with open("temp.rsa", 'r') as f:
@@ -145,9 +171,22 @@ class CustomSSLClient(BaseClient):
 
         return r
 
+    def process_server_finish(self, msg):
+        d = json.loads(raw(msg))
+
+        crs = str(self.server_random) + str(self.random1) + \
+            self.server_pubkey + self.public_key
+        cms = self.md5(crs)
+
+        if d['ms'] == cms:
+            return True
+        return False
+
 
 if __name__ == '__main__':
     client = CustomSSLClient()
     client.generate_key()
     client.connect(('127.0.0.1', 19910))
-    client.server_hello()
+    print("try to establish security connection...")
+    if client.handshake():
+        print("handshake ok.")

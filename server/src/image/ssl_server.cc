@@ -199,7 +199,7 @@ bool CustomSSLServer::ConfirmACK(const char* msg, ClientInfo* client){
     client_pubkey+=epk_array[i];
   }
    
-  LOG_TRACE("%s", client_pubkey.c_str());
+  //LOG_TRACE("%s", client_pubkey.c_str());
 
   //const char* encrypted_client_pubkey = NULL; 
   //int PrivateDecrypt(unsigned char* enc_data, int sz, unsigned char* key, 
@@ -247,9 +247,9 @@ void CustomSSLServer::ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* c
   // Master Secret.
   std::string ms = md5(buffer);
   char* body = (char*)malloc(sizeof(char)*(
-        22 + ms.size()
+        24 + ms.size()
         ));
-  int mc = sprintf(body, "{\"type\":\"SFIN\",\"ms\":%s}", ms.c_str());
+  int mc = sprintf(body, "{\"type\":\"SFIN\",\"ms\":\"%s\"}", ms.c_str());
   if(mc == -1) ; // error
 
   conn->Write(body);
