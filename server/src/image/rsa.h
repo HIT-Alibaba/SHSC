@@ -21,6 +21,13 @@ class ShscRSA {
 
     KeyPair* GetKeyPair();
 
+    bool KeyPairFileAlreadyExisted();
+
+    KeyPair* GetExistedKeyPair();
+           
+    KeyPair* ReadKeyPairFromFile();
+
+
     int PublicEncrypt(const unsigned char* data, int sz, unsigned char* key,
         unsigned char* encrypted);
 

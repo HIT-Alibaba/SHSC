@@ -20,7 +20,12 @@ CustomSSLServer::CustomSSLServer(EventPool* event_pool, const InetAddress& binda
     async_server_(event_pool_, bindaddr)
 { 
   rsa_ = new ShscRSA(RSA_PKCS1_PADDING);
-  keypair_ = rsa_->GetKeyPair();
+  if (rsa_->KeyPairFileAlreadyExisted()) {
+      keypair_ = rsa_->GetExistedKeyPair();
+  }
+  else {
+      keypair_ = rsa_->GetKeyPair();
+  }
 
   async_server_.SetReadCompletionCallback(boost::bind(
         &CustomSSLServer::OnSSLReadCompletion, this, _1, _2));
@@ -316,12 +321,14 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
 
   std::map<InetAddress, ClientInfo*>::iterator full_cli_iter = 
     connections_.find(cl_addr);
-
+  
+  // Connected clients, SSL already establishd.
   if(full_cli_iter != connections_.end()){
     std::string enc_msg = buffer->TakeAsString();
     const char* msg = SSLRead(full_cli_iter->second, enc_msg);
     OnReadCompletion(conn, msg);
   }
+  // Half-connected, finish the handshake.
   else if(half_cli_iter != half_connections_.end()){
     if(ConfirmACK(buffer->TakeAsString().c_str(), 
           half_cli_iter->second)){
@@ -342,8 +349,8 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
       LOG_TRACE("ConfirmACK failed.");
     }
   }
+  // New SSL connection.
   else{
-    // new SSL connection.
     if(IsClientHello(buffer->TakeAsString().c_str(), cl_addr)){
       // half_connections_.insert(std::make_pair(cl_addr, ))
       ServerHello(conn);

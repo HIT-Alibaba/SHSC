@@ -21,6 +21,21 @@ KeyPair* ShscRSA::GetKeyPair(){
   system("openssl rsa -in private.pem -outform PEM -pubout -out public.pem");
   if(access("public.pem", R_OK) == -1) return NULL;
 
+  return ReadKeyPairFromFile();
+}
+
+bool ShscRSA::KeyPairFileAlreadyExisted() {
+  if (access("private.pem", R_OK == -1)) return false;
+  if (access("public.pem", R_OK == -1)) return false;
+  return true;
+}
+
+KeyPair* ShscRSA::GetExistedKeyPair() {
+  if (! KeyPairFileAlreadyExisted()) return NULL; 
+  return ReadKeyPairFromFile();
+}
+
+KeyPair* ShscRSA::ReadKeyPairFromFile(){
   FILE *pri, *pub;
   KeyPair* pair = new KeyPair();
 
@@ -35,8 +50,9 @@ KeyPair* ShscRSA::GetKeyPair(){
   fseek(pri, 0L, SEEK_SET);
 
   int r = fread(pair->private_key, sizeof(char), sz, pri);
+  fclose(pri);
   if(r != sz) return NULL;
-
+  
   pub = fopen("public.pem", "r");
   if(pub == NULL) return NULL;
   fseek(pub, 0L, SEEK_END);
@@ -45,6 +61,7 @@ KeyPair* ShscRSA::GetKeyPair(){
   fseek(pub, 0L, SEEK_SET);
 
   r = fread(pair->public_key, sizeof(char), sz, pub);
+  fclose(pub);
   if(r != sz) return NULL;
 
   return pair;
