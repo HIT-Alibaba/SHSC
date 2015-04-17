@@ -35,7 +35,7 @@ CustomSSLServer::CustomSSLServer(EventPool* event_pool, const InetAddress& binda
         ));
   async_server_.SetCloseCallback(boost::bind(
         &CustomSSLServer::OnConnectionClose, this, _1));
-  random1 = 1222222;
+  random1 = abs(rsa_->GenerateRandomInt()) % 100000000;
 }
 
 void CustomSSLServer::OnConnection(const AsyncConnectionPtr& conn){}
@@ -61,7 +61,7 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
   
   int bodysize = strlen(reinterpret_cast<char*>(keypair_->public_key))/* public key */
       + 8 /*random number*/
-      + 29;
+      + 30;
 
   char* body = (char*)malloc(bodysize);
   int bc = sprintf(body, "\"body\":{\"pubkey\":\"%s\",\"magic\":%d}", keypair_->public_key, random1);
@@ -71,12 +71,14 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
 
   std::string checksum = md5(body);  
 
-  char* msg = (char*) malloc (bodysize + 14 + checksum.size());
+  int msgsize = bodysize + 17 + checksum.size();
+  char* msg = (char*) malloc(msgsize);
   
   int mc = sprintf(msg, "{%s,\"checksum\":\"%s\"}", body, checksum.c_str());
   if(mc == -1) ; // error;
+  msg[msgsize-1] = '\0';
 
-  //LOG_TRACE("%s", msg);
+  LOG_TRACE("%s", msg);
 
   conn->Write(msg);
 
@@ -88,7 +90,7 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
  * Format of client hello message:
  *
  * json :{ "type": "HELO", "magic": random number 1 }
- * 
+
  */
 bool CustomSSLServer::IsClientHello(const char* msg, const InetAddress& address){
   Document document;

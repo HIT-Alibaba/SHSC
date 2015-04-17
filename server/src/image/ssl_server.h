@@ -9,13 +9,14 @@
 
 #include <map>
 #include <vector>
+#include <cstdint>
 
 using namespace rapidjson;
 
 namespace shsc {
 
   struct ClientInfo {
-    int random2;
+    int32_t random2;
     unsigned char* client_pubkey;
     std::string master_secret;
 

@@ -108,6 +108,7 @@ class CustomSSLClient(BaseClient):
 
     def process_server_hello(self, msg):
         try:
+            print(msg)
             d = json.loads(raw(msg))
         except KeyError:
             return False
