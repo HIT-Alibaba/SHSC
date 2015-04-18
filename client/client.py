@@ -91,16 +91,21 @@ class CustomSSLClient(BaseClient):
             return False
         return True
 
-    def generate_key(self):
-        os.system("openssl genrsa -out private.pem 2048")
-        os.system(
-            "openssl rsa -in private.pem -outform PEM -pubout -out public.pem")
-
+    def read_key_from_file(self):
         with open("private.pem", 'r') as f:
             self.private_key = f.read()
 
         with open("public.pem", 'r') as f:
             self.public_key = f.read()
+            
+    def generate_key(self):
+        if os.path.exists("private.pem") and os.path.exists("public.pem"):
+            self.read_key_from_file()
+        else:
+            os.system("openssl genrsa -out private.pem 2048")
+            os.system(
+                "openssl rsa -in private.pem -outform PEM -pubout -out public.pem")
+            self.read_key_from_file()
 
     def server_hello(self):
         msg_dict = {"magic": self.random1, "type": "HELO"}
