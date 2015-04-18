@@ -28,6 +28,8 @@ CustomSSLServer::CustomSSLServer(EventPool* event_pool, const InetAddress& binda
   async_server_.SetConnectionCallback(boost::bind(
         &CustomSSLServer::OnConnection, this, _1
         ));
+  async_server_.SetCloseCallback(boost::bind(
+        &CustomSSLServer::OnConnectionClose, this, _1));
   random1 = 1222222;
 }
 
@@ -37,35 +39,6 @@ void CustomSSLServer::Start(){
   async_server_.Start();
 }
  
-/* Format of ServerHello massage:
- *
- * server random number : random2 uint64 ----> 8
- * length of key: sizeof size_t          ----> 8
- * length of cert checksum               ----> 8
- * server public key                     ----> length of key
- * server cert checksum                  ----> length of checksum
- * 
- *
- 
-void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
-  size_t key_len = public_key.size();
-  size_t cert_len = certificate_checksum.size();
-  size_t random_len = sizeof(random2);
-  size_t size = sizeof(size_t);
-
-  char* msg = (char*)malloc(2*size+random_len+(key_len+cert_len));
-  
-  memcpy(msg, &random2, random_len);
-  memcpy(msg+random_len, &key_len, size);
-  memcpy(msg+random_len+size, &cert_len, size);
-  memcpy(msg+random_len+2*size, public_key.c_str(), key_len);
-  memcpy(msg+random_len+key_len+2*size, certificate_checksum.c_str(), cert_len);
-  
-  conn->Write(msg);
-}
-
-*/
-
 /*
  * Format of server hello massage.
  * 
@@ -132,6 +105,9 @@ bool CustomSSLServer::IsClientHello(const char* msg, const InetAddress& address)
   return true;
 }
 
+/*
+ * tool function to convert json int array to unsigned char array
+ */
 void CustomSSLServer::iatouc(const Value& array, unsigned char* epk){
   for(rapidjson::SizeType i = 0; i < array.Size(); i++){
     epk[i] = array[i].GetInt();
@@ -198,16 +174,6 @@ bool CustomSSLServer::ConfirmACK(const char* msg, ClientInfo* client){
   for(size_t i = 0; i < epk_array.size(); i++){
     client_pubkey+=epk_array[i];
   }
-   
-  //LOG_TRACE("%s", client_pubkey.c_str());
-
-  //const char* encrypted_client_pubkey = NULL; 
-  //int PrivateDecrypt(unsigned char* enc_data, int sz, unsigned char* key, 
-  //      unsigned char* decrypted);
-  //unsigned char client_pub_key[2048 / 8];
-  //rsa_->PrivateDecrypt(reinterpret_cast<const unsigned char*>(encrypted_client_pubkey)
-  //    , document["length"].GetInt(),
-  //  keypair_->private_key, client_pub_key);
 
   std::string epk_hash = md5(client_pubkey);
 
@@ -245,11 +211,11 @@ void CustomSSLServer::ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* c
   if(bc == -1) ; // error
   
   // Master Secret.
-  std::string ms = md5(buffer);
+  master_secret = md5(buffer);
   char* body = (char*)malloc(sizeof(char)*(
-        24 + ms.size()
+        24 + master_secret.size()
         ));
-  int mc = sprintf(body, "{\"type\":\"SFIN\",\"ms\":\"%s\"}", ms.c_str());
+  int mc = sprintf(body, "{\"type\":\"SFIN\",\"ms\":\"%s\"}", master_secret.c_str());
   if(mc == -1) ; // error
 
   conn->Write(body);
@@ -257,8 +223,82 @@ void CustomSSLServer::ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* c
   free(body);
 }
 
+/*
+ * encrypt msg with aes using Master Secret
+ * and send out to peer.
+ *
+ */
+void CustomSSLServer::SSLWrite(const AsyncConnectionPtr& conn, const char* msg){
+  const char* data = "msg.txt";
+  int fd;
+
+  char* command = (char*) malloc (sizeof(char)*(
+        strlen(iv) + strlen(data) + master_secret.size() + 43
+        ));
+
+  int cs = sprintf(command, "openssl enc -aes-128-cbc -in %s -K %s -iv %s",
+      data, master_secret.c_str(), iv);
+
+  if(cs == -1) ; //error
+  
+  mutex_.Lock();
+  fd = open(data, O_WRONLY|O_CREAT, 0666);
+  write(fd, msg, strlen(msg));
+
+  FILE* pipe = popen(command, "r");
+  if(!pipe) ; // error
+
+  char buffer[128];
+  std::string result;
+  while(!feof(pipe)){
+    if(fgets(buffer, 128, pipe)!= NULL)
+      result += buffer;
+  }
+
+  pclose(pipe);
+  close(fd);
+
+  conn->Write(result);
+
+  mutex_.Unlock();
+}
+
+
+/*
+ * decrypt the msg with aes algorithm using the Master Secret.
+ */
 const char* CustomSSLServer::SSLRead(std::string& enc_msg){
-  return enc_msg.c_str();
+  const char* data = "enc.txt";
+  int fd;
+  char* command = (char*)malloc(sizeof(char)*(
+        strlen(iv)+strlen(data)+master_secret.size() + 45
+        ));
+
+  int cs = sprintf(command, "openssl enc -aes-128-cbc -d -in %s -K %s -iv %s", 
+      data, master_secret.c_str(), iv);
+
+  if (cs == -1) ; // error
+
+  mutex_.Lock();
+  fd = open(data, O_WRONLY|O_CREAT, 0666);
+  write(fd, enc_msg.c_str(), enc_msg.size());
+
+  FILE* pipe = popen(command, "r");
+  if(!pipe) ; // error
+ 
+  char buffer[128];
+  std::string result = "";
+
+  while(!feof(pipe)){
+    if(fgets(buffer, 128, pipe)!=NULL)
+      result += buffer;
+  }
+
+  pclose(pipe);
+  close(fd);
+
+  mutex_.Unlock();
+  return result.c_str();
 }
 
 
@@ -290,6 +330,7 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
     }
     else {
       // log out error. confirm ack failed.
+      LOG_TRACE("ConfirmACK failed.");
     }
   }
   else{
@@ -300,6 +341,7 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
       
     } else {
       ; // log out error. not a SSL connection.
+      LOG_TRACE("Not a SSL connection, connection refused");
     }
   }
 }
@@ -307,4 +349,38 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
 void CustomSSLServer::OnReadCompletion(const AsyncConnectionPtr& conn, const char* buffer){
   LOG_TRACE("peer=%s:%d, %s",conn->peer_addr().ip().c_str(),
       conn->peer_addr().port(), buffer);
+
+  SSLWrite(conn, buffer);
 }
+
+void CustomSSLServer::OnConnectionClose(const AsyncConnectionPtr& conn){
+  auto half_iter = half_connections_.find(conn->peer_addr());
+  auto full_iter = connections_.find(conn->peer_addr());
+  if (half_iter != half_connections_.end()){
+    mutex_.Lock();
+
+    delete half_iter->second;
+    half_connections_.erase(half_iter);
+    mutex_.Unlock();
+  }
+  else if(full_iter != connections_.end()){
+    mutex_.Lock();
+    // release the client memory.
+    delete full_iter->second;
+    connections_.erase(full_iter);
+    mutex_.Unlock();
+  }
+
+  {
+    mutex_.Lock();
+    AsyncServer::ConnectionMap::iterator iter = async_server_.connections_.find(conn->id());
+    assert(iter != async_server_.connections_.end());
+    async_server_.connections_.erase(iter);
+    mutex_.Unlock(); 
+  }
+
+  LOG_TRACE("ssl connection close: %s:%d", conn->peer_addr().ip().c_str(), 
+      conn->peer_addr().port());
+}
+
+

@@ -47,8 +47,9 @@ void AsyncServer::OnNewConnection(int sockfd,
     new_conn->SetConnectionCallback(on_connection_cb_);
     new_conn->SetWriteCompletionCallback(on_write_completion_cb_);
     new_conn->SetReadCompletionCallback(on_read_completion_cb_);
-    new_conn->SetCloseCallback(
-        boost::bind(&AsyncServer::OnCloseConnection, this, _1));
+    //new_conn->SetCloseCallback(
+    //    boost::bind(&AsyncServer::OnCloseConnection, this, _1));
+    new_conn->SetCloseCallback(on_close_cb_);
 
     new_conn->Establish();
 
@@ -56,12 +57,12 @@ void AsyncServer::OnNewConnection(int sockfd,
     connections_[new_conn->id()] = new_conn;
 }
 
-void AsyncServer::OnCloseConnection(const AsyncConnectionPtr& conn) {
-    {
-        MutexLock l(&mu_);
-        ConnectionMap::iterator iter = connections_.find(conn->id());
-        assert(iter != connections_.end());
-        connections_.erase(iter);
-    }
-    conn->Destroy();
-}
+//void AsyncServer::OnCloseConnection(const AsyncConnectionPtr& conn) {
+//    {
+//        MutexLock l(&mu_);
+//        ConnectionMap::iterator iter = connections_.find(conn->id());
+//        assert(iter != connections_.end());
+//        connections_.erase(iter);
+//    }
+//    conn->Destroy();
+//}

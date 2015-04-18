@@ -37,13 +37,14 @@ namespace shsc {
 
       void ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* client);
 
-      void SSLWrite(const AsyncConnectionPtr& conn);
+      void SSLWrite(const AsyncConnectionPtr& conn, const char* msg);
       const char* SSLRead(std::string& enc_msg);
 
       void OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer* buffer);
 
       virtual void OnReadCompletion(const AsyncConnectionPtr& conn, const char* buffer);
       void OnConnection(const AsyncConnectionPtr& conn);
+      void OnConnectionClose(const AsyncConnectionPtr& conn);
 
       void iatouc(const rapidjson::Value& array, unsigned char* epk);
 
@@ -51,16 +52,16 @@ namespace shsc {
 
       ShscRSA* rsa_;
       KeyPair* keypair_;
-      std::string certificate_checksum;
-
       
       int random1; // send to client in server_hello
-      char* master_secret;
+      std::string master_secret;
 
       EventPool* event_pool_;
       AsyncServer async_server_;
 
       Mutex mutex_;
+
+      const char* iv = "0123456789";
 
       std::map<InetAddress, ClientInfo*> half_connections_;
       std::map<InetAddress, ClientInfo*> connections_;

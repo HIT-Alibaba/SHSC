@@ -64,6 +64,8 @@ class CustomSSLClient(BaseClient):
         self.private_key = None
         self.public_key = None
 
+        self.ms = None
+
         self.server_pubkey = None
         self.server_random = None
 
@@ -179,8 +181,29 @@ class CustomSSLClient(BaseClient):
         cms = self.md5(crs)
 
         if d['ms'] == cms:
+            self.ms = cms
             return True
         return False
+
+    def ssl_read(self):
+        data = self.read(1024)
+        with open("enc.txt", "w") as f:
+            f.write(data)
+
+        os.system("openssl enc -aes-128-cbc -d -in enc.txt -out data.txt -K "
+                  + self.ms + " -iv 0123456789")
+        with open("data.txt", "r") as f:
+            return f.read()
+
+    def ssl_write(self, msg):
+        with open("msg.txt", 'w') as f:
+            f.write(msg)
+
+        os.system("openssl enc -aes-128-cbc -in msg.txt -out enc_msg.txt -K " +
+                  self.ms + " -iv 0123456789")
+
+        with open("enc_msg.txt", 'r') as f:
+            self.write(f.read())
 
 
 if __name__ == '__main__':
@@ -190,3 +213,11 @@ if __name__ == '__main__':
     print("try to establish security connection...")
     if client.handshake():
         print("handshake ok.")
+
+    while True:
+        data = raw_input("input message:")
+
+        client.ssl_write(data)
+        print("write to server...: ", data)
+        sd = client.ssl_read()
+        print("recieve from server ...:", data)

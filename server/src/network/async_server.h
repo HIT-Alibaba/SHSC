@@ -32,10 +32,16 @@ class AsyncServer : boost::noncopyable {
         on_read_completion_cb_ = callback;
     }
 
+    void SetCloseCallback(const CloseCallback& callback) {
+        on_close_cb_ = callback;
+    }
+
+    ConnectionMap connections_;
+
   private:
     // our acceptor only runs on a fixed thread.
     void OnNewConnection(int sockfd, const InetAddress& peeraddr);
-    void OnCloseConnection(const AsyncConnectionPtr& conn);
+    //void OnCloseConnection(const AsyncConnectionPtr& conn);
 
     EventPool* event_pool_;
     volatile int started_;
@@ -43,11 +49,12 @@ class AsyncServer : boost::noncopyable {
     Acceptor acceptor_;
     InetAddress bind_addr_;
     Mutex mu_;
-    ConnectionMap connections_;
+    
 
     ConnectionCallback on_connection_cb_;
     WriteCompletionCallback on_write_completion_cb_;
     ReadCompletionCallback on_read_completion_cb_;
+    CloseCallback on_close_cb_;
 };
 
 } // namespace shsc
