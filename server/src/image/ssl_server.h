@@ -17,6 +17,7 @@ namespace shsc {
   struct ClientInfo {
     int random2;
     unsigned char* client_pubkey;
+    std::string master_secret;
 
     // ?
     InetAddress address;
@@ -38,7 +39,7 @@ namespace shsc {
       void ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* client);
 
       void SSLWrite(const AsyncConnectionPtr& conn, const char* msg);
-      const char* SSLRead(std::string& enc_msg);
+      const char* SSLRead(const ClientInfo* client,  const std::string& enc_msg);
 
       void OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer* buffer);
 
@@ -54,7 +55,6 @@ namespace shsc {
       KeyPair* keypair_;
       
       int random1; // send to client in server_hello
-      std::string master_secret;
 
       EventPool* event_pool_;
       AsyncServer async_server_;

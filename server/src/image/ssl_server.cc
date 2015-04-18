@@ -211,11 +211,11 @@ void CustomSSLServer::ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* c
   if(bc == -1) ; // error
   
   // Master Secret.
-  master_secret = md5(buffer);
+  client->master_secret = md5(buffer);
   char* body = (char*)malloc(sizeof(char)*(
-        24 + master_secret.size()
+        24 + client->master_secret.size()
         ));
-  int mc = sprintf(body, "{\"type\":\"SFIN\",\"ms\":\"%s\"}", master_secret.c_str());
+  int mc = sprintf(body, "{\"type\":\"SFIN\",\"ms\":\"%s\"}", client->master_secret.c_str());
   if(mc == -1) ; // error
 
   conn->Write(body);
@@ -232,12 +232,17 @@ void CustomSSLServer::SSLWrite(const AsyncConnectionPtr& conn, const char* msg){
   const char* data = "msg.txt";
   int fd;
 
+  auto iter = connections_.find(conn->peer_addr());
+  assert(iter != connections_.end());
+
+  ClientInfo* client = iter->second;
+
   char* command = (char*) malloc (sizeof(char)*(
-        strlen(iv) + strlen(data) + master_secret.size() + 43
+        strlen(iv) + strlen(data) + client->master_secret.size() + 43
         ));
 
   int cs = sprintf(command, "openssl enc -aes-128-cbc -in %s -K %s -iv %s",
-      data, master_secret.c_str(), iv);
+      data, client->master_secret.c_str(), iv);
 
   if(cs == -1) ; //error
   
@@ -267,15 +272,16 @@ void CustomSSLServer::SSLWrite(const AsyncConnectionPtr& conn, const char* msg){
 /*
  * decrypt the msg with aes algorithm using the Master Secret.
  */
-const char* CustomSSLServer::SSLRead(std::string& enc_msg){
+const char* CustomSSLServer::SSLRead(const ClientInfo* client, const std::string& enc_msg){
+
   const char* data = "enc.txt";
   int fd;
   char* command = (char*)malloc(sizeof(char)*(
-        strlen(iv)+strlen(data)+master_secret.size() + 45
+        strlen(iv)+strlen(data)+client->master_secret.size() + 45
         ));
 
   int cs = sprintf(command, "openssl enc -aes-128-cbc -d -in %s -K %s -iv %s", 
-      data, master_secret.c_str(), iv);
+      data, client->master_secret.c_str(), iv);
 
   if (cs == -1) ; // error
 
@@ -303,14 +309,17 @@ const char* CustomSSLServer::SSLRead(std::string& enc_msg){
 
 
 void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer* buffer){
-  InetAddress cl_addr = conn->local_addr();
+  InetAddress cl_addr = conn->peer_addr();
 
   std::map<InetAddress, ClientInfo*>::iterator half_cli_iter = 
     half_connections_.find(cl_addr);
 
-  if(connections_.find(cl_addr) != connections_.end()){
+  std::map<InetAddress, ClientInfo*>::iterator full_cli_iter = 
+    connections_.find(cl_addr);
+
+  if(full_cli_iter != connections_.end()){
     std::string enc_msg = buffer->TakeAsString();
-    const char* msg = SSLRead(enc_msg);
+    const char* msg = SSLRead(full_cli_iter->second, enc_msg);
     OnReadCompletion(conn, msg);
   }
   else if(half_cli_iter != half_connections_.end()){
