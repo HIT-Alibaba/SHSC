@@ -16,6 +16,7 @@ using namespace rapidjson;
 namespace shsc {
 
   struct ClientInfo {
+    int32_t random1;
     int32_t random2;
     unsigned char* client_pubkey;
     std::string master_secret;
@@ -33,7 +34,7 @@ namespace shsc {
       void Start();
 
       bool IsClientHello(const char* msg, const InetAddress& address);
-      void ServerHello(const AsyncConnectionPtr& conn);
+      void ServerHello(const AsyncConnectionPtr& conn, ClientInfo* client);
       
       bool ConfirmACK(const char* msg, ClientInfo* client);      
 

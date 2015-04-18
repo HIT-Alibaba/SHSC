@@ -35,7 +35,6 @@ CustomSSLServer::CustomSSLServer(EventPool* event_pool, const InetAddress& binda
         ));
   async_server_.SetCloseCallback(boost::bind(
         &CustomSSLServer::OnConnectionClose, this, _1));
-  random1 = abs(rsa_->GenerateRandomInt()) % 100000000;
 }
 
 void CustomSSLServer::OnConnection(const AsyncConnectionPtr& conn){}
@@ -57,14 +56,14 @@ void CustomSSLServer::Start(){
  * }
  *
  */
-void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn){
+void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn, ClientInfo* client){
   
   int bodysize = strlen(reinterpret_cast<char*>(keypair_->public_key))/* public key */
       + 8 /*random number*/
       + 30;
 
   char* body = (char*)malloc(bodysize);
-  int bc = sprintf(body, "\"body\":{\"pubkey\":\"%s\",\"magic\":%d}", keypair_->public_key, random1);
+  int bc = sprintf(body, "\"body\":{\"pubkey\":\"%s\",\"magic\":%d}", keypair_->public_key, client->random1);
   if(bc == -1) ; // error;
 
   body[bodysize-1] = '\0';
@@ -101,12 +100,12 @@ bool CustomSSLServer::IsClientHello(const char* msg, const InetAddress& address)
   if(strcmp(document["type"].GetString(), "HELO") != 0) return false;
   
   ClientInfo * client = new ClientInfo();
+  client->random1 = rsa_->GenerateRandomInt();
   client->random2 = document["magic"].GetInt();
   client->address = address;
   
   mutex_.Lock();
   half_connections_.insert(std::make_pair(address, client));
-  
   mutex_.Unlock();
 
   return true;
@@ -212,7 +211,7 @@ void CustomSSLServer::ServerFinish(const AsyncConnectionPtr& conn, ClientInfo* c
           17 + strlen(reinterpret_cast<char*>(client->client_pubkey)) + 
           strlen(reinterpret_cast<char*>(keypair_->public_key))
         ));
-  int bc = sprintf(buffer, "%d%d%s%s", random1, client->random2, 
+  int bc = sprintf(buffer, "%d%d%s%s", client->random1, client->random2, 
       keypair_->public_key, client->client_pubkey);
 
   if(bc == -1) ; // error
@@ -354,8 +353,7 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
   // New SSL connection.
   else{
     if(IsClientHello(buffer->TakeAsString().c_str(), cl_addr)){
-      // half_connections_.insert(std::make_pair(cl_addr, ))
-      ServerHello(conn);
+      ServerHello(conn, half_connections_.find(cl_addr)->second);
       
     } else {
       ; // log out error. not a SSL connection.

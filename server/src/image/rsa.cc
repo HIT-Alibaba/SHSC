@@ -15,14 +15,10 @@
 using namespace shsc;
 
 KeyPair* ShscRSA::GetKeyPair(){
-  //char *command = new char[38];
-  //sprintf(command, "openssl genrsa -out %s %d", private_file_name, length); 
   system("openssl genrsa -out private.pem 2048");
-  if (access("private.pem", R_OK) == -1) return NULL; // file doesn't exited. 
-  
   system("openssl rsa -in private.pem -outform PEM -pubout -out public.pem");
-  if(access("public.pem", R_OK) == -1) return NULL;
-
+  
+  if (!KeyPairFileAlreadyExisted()) return NULL; 
   return ReadKeyPairFromFile();
 }
 
@@ -33,7 +29,7 @@ bool ShscRSA::KeyPairFileAlreadyExisted() {
 }
 
 KeyPair* ShscRSA::GetExistedKeyPair() {
-  if (! KeyPairFileAlreadyExisted()) return NULL; 
+  if (!KeyPairFileAlreadyExisted()) return NULL; 
   return ReadKeyPairFromFile();
 }
 
@@ -75,7 +71,10 @@ int32_t ShscRSA::GenerateRandomInt(){
       ERR_print_errors_fp(stderr);     
       return 0;
    }
-   return v;
+   // Make sure it's an 8-digit number
+   int32_t t = abs(v) % 100000000;
+   if (t < 10000000) t += 10000000;
+   return t;
 }
 
 RSA* ShscRSA::CreateRSA(unsigned char * key, int pub){
