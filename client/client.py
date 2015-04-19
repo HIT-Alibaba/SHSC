@@ -3,6 +3,7 @@ import json
 import os
 import hashlib
 import random
+import logging
 #import rsa
 
 escape_dict = {'\a': r'\a',
@@ -27,6 +28,10 @@ escape_dict = {'\a': r'\a',
 
 _random = random.SystemRandom()
 
+logging.basicConfig(format='[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s %(message)s', level=logging.DEBUG)
+
+logger = logging.getLogger()
+
 def raw(text):
     """Returns a raw string representation of text"""
     new_string = ''
@@ -41,6 +46,9 @@ def raw(text):
 def get_random_int():
     return _random.randint(10000000, 99999999)
 
+def debug(s):
+    logging.debug(s)
+    
 class BaseClient(object):
 
     def __init__(self):
@@ -75,19 +83,19 @@ class CustomSSLClient(BaseClient):
         self.server_random = None
 
         #(self.public_key, self.private_key) = rsa.newkeys(2048)
-        #print(self.public_key, self.private_key)
+        #debug(self.public_key, self.private_key)
 
     def handshake(self):
         if not self.server_hello():
-            print("hello to server failed")
+            debug("hello to server failed")
             return False
         data = self.read(1024)
         if not self.process_server_hello(data):
-            print("hello from error")
+            debug("hello from error")
             return False
         self.send_ack()
         if not self.process_server_finish(self.read(1024)):
-            print("error when processing server fin message")
+            debug("error when processing server fin message")
             return False
         return True
 
@@ -118,7 +126,6 @@ class CustomSSLClient(BaseClient):
 
     def process_server_hello(self, msg):
         try:
-            print(msg)
             d = json.loads(raw(msg))
         except KeyError:
             return False
@@ -129,7 +136,7 @@ class CustomSSLClient(BaseClient):
 
         if ck != d['checksum']:
             # error
-            print("checksum error")
+            debug("checksum error")
             return False
         else:
             self.server_pubkey = d['body']['pubkey'].encode('ascii', 'ignore')
@@ -186,7 +193,6 @@ class CustomSSLClient(BaseClient):
 
     def process_server_finish(self, msg):
         d = json.loads(raw(msg))
-
         crs = str(self.server_random) + str(self.random1) + \
             self.server_pubkey + self.public_key
         cms = self.md5(crs)
@@ -198,7 +204,7 @@ class CustomSSLClient(BaseClient):
 
     def ssl_read(self):
         data = self.read(1024)
-        with open("enc.txt", "w") as f:
+        with open("enc.txt", "w+") as f:
             f.write(data)
 
         os.system("openssl enc -aes-128-cbc -d -in enc.txt -out data.txt -K "
@@ -207,7 +213,7 @@ class CustomSSLClient(BaseClient):
             return f.read()
 
     def ssl_write(self, msg):
-        with open("msg.txt", 'w') as f:
+        with open("msg.txt", 'w+') as f:
             f.write(msg)
 
         os.system("openssl enc -aes-128-cbc -in msg.txt -out enc_msg.txt -K " +
@@ -221,14 +227,14 @@ if __name__ == '__main__':
     client = CustomSSLClient()
     client.generate_key()
     client.connect(('127.0.0.1', 19910))
-    print("try to establish security connection...")
+    debug("try to establish security connection...")
     if client.handshake():
-        print("handshake ok.")
+        debug("handshake ok.")
 
     while True:
         data = raw_input("input message:")
 
         client.ssl_write(data)
-        print("write to server...: ", data)
+        debug("write to server...: " + data)
         sd = client.ssl_read()
-        print("recieve from server ...:", data)
+        debug("recieve from server ...:" + data)
