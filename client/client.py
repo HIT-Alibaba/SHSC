@@ -236,5 +236,5 @@ if __name__ == '__main__':
 
         client.ssl_write(data)
         debug("write to server...: " + data)
-        sd = client.ssl_read()
-        debug("recieve from server ...:" + data)
+        recv = client.ssl_read()
+        debug("receive from server ...:" + recv)
