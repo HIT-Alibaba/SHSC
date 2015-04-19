@@ -57,14 +57,20 @@ class BaseClient(object):
     def connect(self, remote):
         self._socket.connect(remote)
 
-    def read(self, sz):
-        return self._socket.recv(sz)
+    def read(self, sz, conn=None):
+        if conn is None:
+            conn = self._socket
+        return conn.recv(sz)
 
-    def write(self, buffer):
-        self._socket.sendall(str(buffer))
+    def write(self, buffer, conn=None):
+        if conn is None:
+            conn = self._socket
+        conn.sendall(str(buffer))
 
-    def close(self):
-        self._socket.close()
+    def close(self, conn=None):
+        if conn is None:
+            conn = self._socket
+        conn.close()
 
 
 class CustomSSLClient(BaseClient):
@@ -202,39 +208,75 @@ class CustomSSLClient(BaseClient):
             return True
         return False
 
-    def ssl_read(self):
-        data = self.read(1024)
+    def ssl_read_from_server(self):
+        return self.ssl_read(self._socket, self.ms)
+
+    def ssl_write_to_server(self, msg):
+        self.ssl_write(self._socket, msg, self.ms)
+        
+    def ssl_read(self, conn, key):
+        data = self.read(1024, conn)
         with open("enc.txt", "w+") as f:
             f.write(data)
 
         os.system("openssl enc -aes-128-cbc -d -in enc.txt -out data.txt -K "
-                  + self.ms + " -iv 0123456789")
+                  + key + " -iv 0123456789")
         with open("data.txt", "r") as f:
             return f.read()
 
-    def ssl_write(self, msg):
+    def ssl_write(self, conn, msg, key):
         with open("msg.txt", 'w+') as f:
             f.write(msg)
 
         os.system("openssl enc -aes-128-cbc -in msg.txt -out enc_msg.txt -K " +
-                  self.ms + " -iv 0123456789")
+                  key + " -iv 0123456789")
 
         with open("enc_msg.txt", 'r') as f:
-            self.write(f.read())
+            self.write(f.read(), conn)
+
+
+
+class ImageNode(CustomSSLClient):
+
+    def __init__(self, addr, port):
+        super(ImageNode, self).__init__()
+        self.addr = addr
+        self.port = port
+        self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def listen(self, backlog=1):
+        self.listen_socket.listen(backlog)
+
+    def add_image(self, image_filename):
+        f = open(filename, 'rb')
+        t = f.read()
+        _md5 = self.md5(t)
+        d = {'type': 'ADD',
+             'filename': image_filename, 
+             'checksum': _md5
+            }
+        self.ssl_write_to_server(json.dumps(d))
+
+    def query_image(self, image_filename):
+        d = {'type': 'QUERY',
+             'filename': image_filename
+            }
+        self.ssl_write_to_server(json.dumps(d))
 
 
 if __name__ == '__main__':
-    client = CustomSSLClient()
+    client = ImageNode('127.0.0.1', 8090)
     client.generate_key()
     client.connect(('127.0.0.1', 19910))
     debug("try to establish security connection...")
     if client.handshake():
         debug("handshake ok.")
-
+    
     while True:
-        data = raw_input("input message:")
-
-        client.ssl_write(data)
-        debug("write to server...: " + data)
-        recv = client.ssl_read()
-        debug("receive from server ...:" + recv)
+        data = raw_input("Input message: ")
+        if data == 'QUERY':
+            client.query_image("HelloWorld.png")
+        else:
+            client.ssl_write_to_server(data)
+            debug("write to server: " + data)
+        recv = client.ssl_read_from_server()
+        debug("receive from server: " + recv)
