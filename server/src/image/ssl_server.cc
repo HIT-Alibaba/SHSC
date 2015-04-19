@@ -77,7 +77,7 @@ void CustomSSLServer::ServerHello(const AsyncConnectionPtr& conn, ClientInfo* cl
   if(mc == -1) ; // error;
   msg[msgsize-1] = '\0';
 
-  LOG_TRACE("%s", msg);
+  //LOG_TRACE("%s", msg);
 
   conn->Write(msg);
 
@@ -253,7 +253,7 @@ void CustomSSLServer::SSLWrite(const AsyncConnectionPtr& conn, const char* msg){
   if(cs == -1) ; //error
   
   mutex_.Lock();
-  fd = open(data, O_WRONLY|O_CREAT, 0666);
+  fd = open(data, O_WRONLY|O_CREAT|O_TRUNC, 0666);
   write(fd, msg, strlen(msg));
 
   FILE* pipe = popen(command, "r");
@@ -292,7 +292,7 @@ const char* CustomSSLServer::SSLRead(const ClientInfo* client, const std::string
   if (cs == -1) ; // error
 
   mutex_.Lock();
-  fd = open(data, O_WRONLY|O_CREAT, 0666);
+  fd = open(data, O_WRONLY|O_CREAT|O_TRUNC, 0666);
   write(fd, enc_msg.c_str(), enc_msg.size());
 
   FILE* pipe = popen(command, "r");
