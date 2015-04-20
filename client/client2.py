@@ -294,7 +294,7 @@ class ImageNode(CustomSSLClient):
         self.ssl_write_to_server(json.dumps(d))
 
 if __name__ == '__main__':
-    client = ImageNode('127.0.0.1', 8090)
+    client = ImageNode('127.0.0.1', 8888)
     client.generate_key()
     client.connect(('127.0.0.1', 19910))
     debug("try to establish security connection...")
