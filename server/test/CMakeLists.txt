@@ -16,4 +16,7 @@ target_link_libraries(net_inet_address_test shsc)
 add_executable(ssl_test test_ssl.cc)
 target_link_libraries(ssl_test shsc)
 
+add_executable(imageserver_test test_imageserver.cc)
+target_link_libraries(imageserver_test shsc)
+
 

@@ -341,7 +341,7 @@ void CustomSSLServer::OnSSLReadCompletion(const AsyncConnectionPtr& conn, Buffer
 
       assert(connections_.find(cl_addr) != connections_.end());
       
-      LOG_TRACE("handshake over.");
+      LOG_TRACE("%s :%d handshake ok.", cl_addr.ip().c_str(), cl_addr.port());
 
       ServerFinish(conn, connections_.find(cl_addr)->second);
     }

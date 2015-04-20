@@ -18,11 +18,12 @@ namespace shsc {
     public:
       ImageServer(EventPool* event_pool, const InetAddress& bindaddr);
 
-      bool AddImage(const InetAddress& address, const std::string& filename, 
-          const std::string& image, 
-          const std::string& checksum);
+      bool AddImage(const InetAddress& address, const std::string& filename,  
+          const std::string& checksum,
+          const std::string& image_checksum);
 
-      std::vector<std::string> QueryFiles();
+      std::vector<std::string> AllFiles();
+      const char* vatoc(const std::vector<std::string> files);
       
       bool QueryImage(const std::string& filename, InetAddress& address);
 
@@ -32,9 +33,9 @@ namespace shsc {
 
       bool CheckHash(std::string file, std::string checksum);
 
-      //  <files, file node: ip:port>
-      std::map<std::string, InetAddress> files_;
-
+      //  <files, <file node: ip:port, image checksum> >
+      std::map<std::string, std::pair<InetAddress, std::string> > files_;
+      std::map<InetAddress, InetAddress> client_listen_map_;
 
       Mutex mutex_;
 

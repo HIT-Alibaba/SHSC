@@ -243,25 +243,36 @@ class ImageNode(CustomSSLClient):
         self.addr = addr
         self.port = port
         self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    
     def listen(self, backlog=1):
         self.listen_socket.listen(backlog)
 
     def add_image(self, image_filename):
-        f = open(filename, 'rb')
+        f = open(image_filename, 'rb')
         t = f.read()
-        _md5 = self.md5(t)
+        _filename_md5 = self.md5(image_filename)
+        _image_md5 = self.md5(t)
         d = {'type': 'ADD',
              'filename': image_filename, 
-             'checksum': _md5
+             'checksum': _filename_md5,
+             'image_checksum': _image_md5,
+             'ip': self.addr,
+             'port': self.port
             }
         self.ssl_write_to_server(json.dumps(d))
 
-    def query_image(self, image_filename):
+    def query_image(self):
+        #image_filename = raw_input("Input the name of file:")
         d = {'type': 'QUERY',
-             'filename': image_filename
+             'filename': 'hello_lol.png'
             }
         self.ssl_write_to_server(json.dumps(d))
 
+    def query_all(self):
+        d = {'type': 'ALL', 
+             'i dont kown': 'shsc'
+            }
+        self.ssl_write_to_server(json.dumps(d))
 
 if __name__ == '__main__':
     client = ImageNode('127.0.0.1', 8090)
@@ -274,7 +285,11 @@ if __name__ == '__main__':
     while True:
         data = raw_input("Input message: ")
         if data == 'QUERY':
-            client.query_image("HelloWorld.png")
+            client.query_image()
+        elif data == 'ADD':
+            client.add_image("hello_lol.png")
+        elif data == 'ALL':
+            client.query_all()
         else:
             client.ssl_write_to_server(data)
             debug("write to server: " + data)
