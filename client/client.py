@@ -257,14 +257,49 @@ class ImageNode(CustomSSLClient):
         data, addr = self.peer_socket.recvfrom(2048)
         r = self.decrypt_aes(data, self.peer_master_secret)
         debug("Receive From Peer " + addr[0] + ':' + str(addr[1]) + ' ' + r)
-    
-    def write_data_fo_peer(self, msg, addr, port):
+        try:
+            d = json.loads(r)
+        except ValueError:
+            self.write_to_file(r)
+            return 'WRITE'
+        
+        if d['type'] == 'GET':
+            filename = d['filename']
+            debug('Peer ' + addr[0] + ':' + str(addr[0]) + ' is asking for ' + filename) 
+            self.send_file_to_peer(filename, addr)
+            return 'SEND'
+
+    def send_file_to_peer(self, filename, addr):
+        f = open(filename, 'rb')
+        d = f.read()
+        f.close()
+        self.write_data_to_peer(d, addr[0], addr[1])
+
+    def ask_peer_for_file(self, filename, addr, port):
+        d = {'type':'GET',
+             'filename': filename
+            }
+        self.write_data_to_peer(json.dumps(d), addr, port)
+        self.start_receive()
+
+    def write_to_file(self, data):
+        f = open('recv.txt', 'wb')
+        f.write(data)
+        f.close()
+
+    def write_data_to_peer(self, msg, addr, port):
         data = self.encrypt_aes(msg, self.peer_master_secret)
         self.peer_socket.sendto(data, (addr, port))
 
-    def start_receive(self, timeout):
+    def start_receive(self):
         while True:
-            self.recv_data_from_peer()
+            status = self.recv_data_from_peer()
+            if status == 'WRITE':
+               debug('Recv Finished')
+               break
+            if status == 'SEND':
+               debug('Send Finished')
+               break
 
     def add_image(self, image_filename):
         f = open(image_filename, 'rb')
@@ -310,9 +345,9 @@ if __name__ == '__main__':
         elif data == 'ALL':
             client.query_all()
         elif data == 'SEND':
-            client.write_data_fo_peer("hello", '127.0.0.1', 8888)
+            client.ask_peer_for_file("hello.txt", '127.0.0.1', 8888)
         elif data == 'RECV':
-            client.recv_data_from_peer()
+            client.start_receive()
         else:
             client.ssl_write_to_server(data)
             debug("write to server: " + data)
