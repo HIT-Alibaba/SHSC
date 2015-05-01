@@ -25,7 +25,6 @@ escape_dict = {'\a': r'\a',
                '\8': r'\8',
                '\9': r'\9'}
 
-
 _random = random.SystemRandom()
 
 logging.basicConfig(format='[%(asctime)s] %(filename)s:%(lineno)d %(levelname)s %(message)s', level=logging.DEBUG)
@@ -251,11 +250,15 @@ class ImageNode(CustomSSLClient):
         self.port = port
         self.peer_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.peer_socket.bind((addr, port))
-        self.peer_master_secret = '123456789'
+        self.peer_master_secret = {}
+        self.is_asking = False
 
     def recv_data_from_peer(self):
-        data, addr = self.peer_socket.recvfrom(2048)
-        r = self.decrypt_aes(data, self.peer_master_secret)
+        data, addr = self.peer_socket.recvfrom(1024)
+        ms = self.ms
+        if self.is_asking:
+            ms = self.peer_master_secret[addr]
+        r = self.decrypt_aes(data, ms)
         debug("Receive From Peer " + addr[0] + ':' + str(addr[1]) + ' ' + r)
         try:
             d = json.loads(r)
@@ -265,7 +268,7 @@ class ImageNode(CustomSSLClient):
         
         if d['type'] == 'GET':
             filename = d['filename']
-            debug('Peer ' + addr[0] + ':' + str(addr[0]) + ' is asking for ' + filename) 
+            debug('Peer ' + addr[0] + ':' + str(addr[1]) + ' is asking for ' + filename) 
             self.send_file_to_peer(filename, addr)
             return 'SEND'
 
@@ -276,26 +279,31 @@ class ImageNode(CustomSSLClient):
         self.write_data_to_peer(d, addr[0], addr[1])
 
     def ask_peer_for_file(self, filename, addr, port):
+        self.is_asking = True
         d = {'type':'GET',
              'filename': filename
             }
         self.write_data_to_peer(json.dumps(d), addr, port)
-        self.start_receive()
+        self.start_receive_from_peer()
 
     def write_to_file(self, data):
-        f = open('recv.txt', 'wb')
+        f = open('recv.png', 'wb')
         f.write(data)
         f.close()
 
     def write_data_to_peer(self, msg, addr, port):
-        data = self.encrypt_aes(msg, self.peer_master_secret)
+        ms = self.ms
+        if self.is_asking:
+            ms = self.peer_master_secret[(addr, port)]
+        data = self.encrypt_aes(msg, ms)
         self.peer_socket.sendto(data, (addr, port))
 
-    def start_receive(self):
+    def start_receive_from_peer(self):
         while True:
             status = self.recv_data_from_peer()
             if status == 'WRITE':
                debug('Recv Finished')
+               self.is_asking = False
                break
             if status == 'SEND':
                debug('Send Finished')
@@ -313,12 +321,13 @@ class ImageNode(CustomSSLClient):
              'ip': self.addr,
              'port': self.port
             }
+        debug('Adding ' + image_filename + 'to server...') 
         self.ssl_write_to_server(json.dumps(d))
 
-    def query_image(self):
+    def query_image(self, filename):
         #image_filename = raw_input("Input the name of file:")
         d = {'type': 'QUERY',
-             'filename': 'hello_lol.png'
+             'filename': filename
             }
         self.ssl_write_to_server(json.dumps(d))
 
@@ -327,6 +336,26 @@ class ImageNode(CustomSSLClient):
              'i dont kown': 'shsc'
             }
         self.ssl_write_to_server(json.dumps(d))
+
+
+    def handle_server_response(self):
+        recv = client.ssl_read_from_server()
+        debug("receive from server: " + recv)
+        r = json.loads(recv)
+        req_type = r['type']
+        if req_type == 'QUERY':
+            debug('Query ' + r['status'])
+            if r['status'] == 'OK':
+                peer_host = r['peer_host'] 
+                peer_port = r['peer_port']
+                peer_ms = r['peer_ms']
+                self.peer_master_secret[(peer_host, peer_port)] = peer_ms
+                debug('Found at ' + peer_host + ':' + str(peer_port))
+            
+        if req_type == 'ADD':
+            debug('Add ' + r['status'])
+
+
 
 if __name__ == '__main__':
     client = ImageNode('127.0.0.1', 8888)
@@ -339,17 +368,16 @@ if __name__ == '__main__':
     while True:
         data = raw_input("Input message: ")
         if data == 'QUERY':
-            client.query_image()
+            client.query_image("hello.png")
         elif data == 'ADD':
-            client.add_image("hello_lol.png")
+            client.add_image("hello.png")
         elif data == 'ALL':
             client.query_all()
-        elif data == 'SEND':
-            client.ask_peer_for_file("hello.txt", '127.0.0.1', 8888)
+        elif data == 'ASK':
+            client.ask_peer_for_file("hello.png", '127.0.0.1', 8090)
         elif data == 'RECV':
-            client.start_receive()
+            client.start_receive_from_peer()
         else:
             client.ssl_write_to_server(data)
             debug("write to server: " + data)
-        recv = client.ssl_read_from_server()
-        debug("receive from server: " + recv)
+        client.handle_server_response()

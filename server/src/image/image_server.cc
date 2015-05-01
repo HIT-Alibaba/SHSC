@@ -1,6 +1,7 @@
 #include "image_server.h"
 #include "md5.h"
 
+#include <sstream>
 #include <boost/bind.hpp>
 #include <rapidjson/document.h>
 
@@ -33,14 +34,15 @@ void ImageServer::OnReadCompletion(const AsyncConnectionPtr & conn, const char* 
     // client write-read socket address <-> client listening socket address
     InetAddress addr = InetAddress(ip, port);
     client_listen_map_[conn->peer_addr()] = addr;
+    reverse_client_listen_map_[addr] = conn->peer_addr();
 
     if(AddImage(addr, filename, checksum, image_checksum)){
       LOG_TRACE("%s:%d add image : %s", conn->peer_addr().ip().c_str(), 
           conn->peer_addr().port(), filename.c_str() );
-      SSLWrite(conn, "add image ok.");
+      SSLWrite(conn, "{\"type\":\"ADD\", \"status\":\"OK\"}");
     }
     else{
-      SSLWrite(conn, "add image failed.");
+      SSLWrite(conn, "{\"type\":\"ADD\", \"status\":\"Failed\"}");
     }
   } 
   else if (type=="QUERY"){
@@ -50,14 +52,24 @@ void ImageServer::OnReadCompletion(const AsyncConnectionPtr & conn, const char* 
       LOG_TRACE("filename / filenode: %s / %s : %d", filename.c_str(), filenode.ip().c_str(), 
           filenode.port());
 
-      ClientInfo* client = connections_[conn->peer_addr()];
-      // send client ms to filenode.
       // send filenode ms to client.
+      InetAddress peer_address = reverse_client_listen_map_[filenode];
       
-      //...
+      auto iter = connections_.find(peer_address);
+      assert(iter != connections_.end());
+      ClientInfo* peer_client = iter->second;
 
+      std::stringstream ss;
+      std::string result;
+      // send client ms to filenode.
+      ss << "{\"type\":\"QUERY\",\"status\":\"OK\",\"peer_host\":\"" << filenode.ip() << "\",\"peer_port\":" << filenode.port() << ",\"peer_ms\":\"" << peer_client->master_secret << "\"}";
+      result = ss.str();
+
+      LOG_TRACE("query success: %s", result.c_str());
+      SSLWrite(conn, result.c_str());
     } else {
       LOG_TRACE("query failed: %s", filename.c_str()); 
+      SSLWrite(conn, "{\"type\":\"QUERY\", \"status\": \"Failed\"}");
     }
   }
   else if(type=="ALL"){

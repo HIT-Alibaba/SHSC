@@ -36,7 +36,7 @@ namespace shsc {
       //  <files, <file node: ip:port, image checksum> >
       std::map<std::string, std::pair<InetAddress, std::string> > files_;
       std::map<InetAddress, InetAddress> client_listen_map_;
-
+      std::map<InetAddress, InetAddress> reverse_client_listen_map_;
       Mutex mutex_;
 
       // no copying allowed
