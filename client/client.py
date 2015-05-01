@@ -91,7 +91,7 @@ class CustomSSLClient(BaseClient):
         #debug(self.public_key, self.private_key)
 
     def handshake(self):
-        if not self.server_hello():
+        if not self.client_hello():
             debug("hello to server failed")
             return False
         data = self.read(1024)
@@ -120,7 +120,7 @@ class CustomSSLClient(BaseClient):
                 "openssl rsa -in private.pem -outform PEM -pubout -out public.pem")
             self.read_key_from_file()
 
-    def server_hello(self):
+    def client_hello(self):
         msg_dict = {"magic": self.random1, "type": "HELO"}
         try:
             self.write(json.dumps(msg_dict))
